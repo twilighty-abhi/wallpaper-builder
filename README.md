@@ -43,3 +43,9 @@ This regenerates procedural social artwork and sample renders. No AI assets are 
 - Match the canvas to the browser's estimate of your screen pixels, or swap width and height.
 - In Saved designs, import/download editable `.design.json` files, update a loaded design, duplicate favorites, or undo the latest deletion. Imports preserve version-1 compatibility and validate all settings before applying.
 - The latest session is saved on page exit as well as during editing. A corrupt session no longer prevents recovery of otherwise valid saved designs.
+
+## Device resolutions
+
+The Canvas picker contains 55 searchable native-pixel presets, grouped into common sizes, iPhone, Samsung Galaxy, Google Pixel, other Android phones, MacBook, Apple desktop displays, and iPad. `lib/mat/devices.ts` records manufacturer specification URLs for named devices (verified September 2026). Search by brand, model, or pixel dimensions; select a result to apply it. Phones/tablets default to portrait; Rotate swaps the canvas dimensions.
+
+Device IDs distinguish models that share the same resolution during selection. Recipes still store dimensions, so existing saves and design files remain compatible; a restored or rotated size is labeled by its dimensions rather than guessing a device model. macOS display scaling and browser zoom do not affect these native-pixel presets. Custom dimensions and My screen remain available.
