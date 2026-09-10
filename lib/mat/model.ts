@@ -47,11 +47,18 @@ export function randomize(r: WallpaperRecipe, locks: Locks, seed: number): Wallp
   if (!locks.material) next.material = { seed, grain: .1 + rand() * .25, wear: rand() * .4 };
   return next;
 }
-export type History = { past: WallpaperRecipe[]; present: WallpaperRecipe; future: WallpaperRecipe[] };
-export type Action = { type: 'set' | 'restore'; recipe: WallpaperRecipe } | { type: 'undo' | 'redo' };
+export type History = { past: WallpaperRecipe[]; present: WallpaperRecipe; future: WallpaperRecipe[]; pending?: WallpaperRecipe };
+export type Action = { type: 'set' | 'restore'; recipe: WallpaperRecipe } | { type: 'undo' | 'redo' | 'begin' | 'commit' };
 export function reducer(state: History, action: Action): History {
+  if (action.type === 'begin') return state.pending ? state : { ...state, pending: state.present };
+  if (action.type === 'commit') {
+    if (!state.pending) return state;
+    const { pending, ...rest } = state;
+    return JSON.stringify(pending) === JSON.stringify(state.present) ? rest : { ...rest, past: [...state.past.slice(-79), pending], future: [] };
+  }
+  if (state.pending && (action.type === 'undo' || action.type === 'redo')) return reducer(reducer(state, { type: 'commit' }), action);
   if (action.type === 'restore') return { past: [], present: action.recipe, future: [] };
-  if (action.type === 'set') { if (JSON.stringify(state.present) === JSON.stringify(action.recipe)) return state; return { past: [...state.past.slice(-79), state.present], present: action.recipe, future: [] }; }
+  if (action.type === 'set') { if (state.pending) return { ...state, present: action.recipe }; if (JSON.stringify(state.present) === JSON.stringify(action.recipe)) return state; return { past: [...state.past.slice(-79), state.present], present: action.recipe, future: [] }; }
   if (action.type === 'undo' && state.past.length) return { past: state.past.slice(0, -1), present: state.past.at(-1)!, future: [state.present, ...state.future] };
   if (action.type === 'redo' && state.future.length) return { past: [...state.past, state.present], present: state.future[0], future: state.future.slice(1) };
   return state;
@@ -78,14 +85,36 @@ export function parseRecipe(value: unknown): WallpaperRecipe | null {
     }
   }
   if (!Number.isInteger(r.grid.majorEvery) || !Number.isInteger(r.material.seed)) return null;
-  return clone(r);
+  const clean = clone(original);
+  clean.name = r.name; clean.width = r.width; clean.height = r.height;
+  for (const section of ['palette', 'grid', 'guides', 'typography', 'material', 'quiet'] as const) {
+    for (const key of Object.keys(original[section])) (clean[section] as Record<string, unknown>)[key] = (r[section] as Record<string, unknown>)[key];
+  }
+  return clean;
 }
 export type SavedDesign = { id: string; name: string; recipe: WallpaperRecipe };
 export function readStorage(storage: Pick<Storage, 'getItem'>): { recipe: WallpaperRecipe | null; saved: SavedDesign[]; error: boolean } {
-  try {
-    const latest = storage.getItem('cutting-mat:latest'), saved = storage.getItem('cutting-mat:saved');
-    const rows: unknown = saved ? JSON.parse(saved) : [];
-    return { recipe: latest ? parseRecipe(JSON.parse(latest)) : null, saved: Array.isArray(rows) ? rows.filter((s): s is SavedDesign => !!s && typeof s.id === 'string' && typeof s.name === 'string' && s.name.length <= 100 && !!parseRecipe(s.recipe)).slice(0, 30) : [], error: false };
-  } catch { return { recipe: null, saved: [], error: true }; }
+  let error = false;
+  function read(key: string): unknown { try { const raw = storage.getItem(key); return raw ? JSON.parse(raw) : null; } catch { error = true; return null; } }
+  const latest = read('cutting-mat:latest'), rows = read('cutting-mat:saved');
+  const recipe = parseRecipe(latest); if (latest && !recipe) error = true;
+  const saved: SavedDesign[] = [];
+  if (Array.isArray(rows)) for (const row of rows.slice(0, 30)) {
+    const parsed = parseRecipe(row?.recipe);
+    if (parsed && typeof row.id === 'string' && typeof row.name === 'string' && row.name.length <= 100) saved.push({ id: row.id, name: row.name, recipe: parsed });
+    else error = true;
+  }
+  else if (rows !== null) error = true;
+  return { recipe, saved, error };
 }
+export function applyPreset(index: number, current: WallpaperRecipe, keepCanvas = true): WallpaperRecipe {
+  const next = preset(index); return keepCanvas ? { ...next, width: current.width, height: current.height } : next;
+}
+export function parseDesignFile(text: string): WallpaperRecipe {
+  if (text.length > 65536) throw new Error('Choose a Cutting Mat design file smaller than 64 KB.');
+  let data: unknown; try { data = JSON.parse(text); } catch { throw new Error('This is not a valid JSON design file.'); }
+  const recipe = parseRecipe(data); if (!recipe) throw new Error('This file is not a supported Cutting Mat design.');
+  return recipe;
+}
+export function serializeDesign(recipe: WallpaperRecipe): string { return JSON.stringify(recipe, null, 2); }
 export function writeStorage(storage: Pick<Storage, 'setItem'>, key: string, value: unknown): boolean { try { storage.setItem(key, JSON.stringify(value)); return true; } catch { return false; } }

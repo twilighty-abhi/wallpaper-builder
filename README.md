@@ -35,3 +35,11 @@ node --experimental-strip-types scripts/artwork.mjs
 ```
 
 This regenerates procedural social artwork and sample renders. No AI assets are used.
+
+## Studio v2 workflow
+
+- Type exact values beside sliders; each completed slider gesture is one undo step.
+- Keep canvas size while trying presets, or switch that option off to use preset dimensions.
+- Match the canvas to the browser's estimate of your screen pixels, or swap width and height.
+- In Saved designs, import/download editable `.design.json` files, update a loaded design, duplicate favorites, or undo the latest deletion. Imports preserve version-1 compatibility and validate all settings before applying.
+- The latest session is saved on page exit as well as during editing. A corrupt session no longer prevents recovery of otherwise valid saved designs.

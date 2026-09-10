@@ -27,7 +27,7 @@ export function renderMat(canvas: HTMLCanvasElement, r: WallpaperRecipe, width: 
     const length = Math.min(w - 2 * margin, (h - 2 * margin) / Math.tan(angle * Math.PI / 180));
     line(margin, h - margin, margin + length, h - margin - Math.tan(angle * Math.PI / 180) * length);
     c.save(); c.translate(margin + 50, h - margin - 50 * Math.tan(angle * Math.PI / 180)); c.rotate(-angle * Math.PI / 180); c.fillText(`${angle}°`, 0, -7); c.restore();
-    if (angle === 45) line(w - margin, margin, Math.max(margin, w - margin - (h - 2 * margin)), h - margin);
+    if (angle === 45) { const diagonal = Math.min(w - 2 * margin, h - 2 * margin); line(w - margin, margin, w - margin - diagonal, margin + diagonal); }
   });
   if (r.guides.circles) {
     const cx = w * .73, cy = h * .51;
@@ -56,7 +56,7 @@ export function renderMat(canvas: HTMLCanvasElement, r: WallpaperRecipe, width: 
   for (const [x, y, a] of t.dots) c.fillRect(x * w, y * h, .35 + a * .45, .35 + a * .45);
   c.strokeStyle = r.palette.label; c.lineWidth = .4;
   for (const [x, y, angle, length, opacity] of t.cuts.slice(0, Math.round(r.material.wear * t.cuts.length))) { c.globalAlpha = (.02 + opacity * .11) * r.material.wear; const len = 20 + length * 190; line(x * w, y * h, x * w + Math.cos(angle * Math.PI * 2) * len, y * h + Math.sin(angle * Math.PI * 2) * len); }
-  if (r.typography.title || r.typography.subtitle) {
+  if (r.typography.opacity > 0 && (r.typography.title || r.typography.subtitle)) {
     const x = w - margin - 24, y = h - margin - 48;
     c.textAlign = 'right'; c.font = `500 ${r.typography.size}px monospace`;
     const boxWidth = Math.min(w - margin * 2 - 30, Math.max(c.measureText(r.typography.title).width, r.typography.subtitle.length * r.typography.size * .33) + 36);

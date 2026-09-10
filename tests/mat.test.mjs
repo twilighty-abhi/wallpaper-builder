@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { original, preset, parseRecipe, reducer, randomize, dimensionError, readStorage, writeStorage, clone } from '../lib/mat/model.ts';
+import { original, preset, applyPreset, parseDesignFile, serializeDesign, parseRecipe, reducer, randomize, dimensionError, readStorage, writeStorage, clone } from '../lib/mat/model.ts';
 const source = fs.readFileSync(new URL('../lib/mat/render.ts', import.meta.url), 'utf8').replace("'./model'", JSON.stringify(new URL('../lib/mat/model.ts', import.meta.url).href));
 const { stripTypeScriptTypes } = await import('node:module');
 const { renderMat, exportPng } = await import('data:text/javascript;base64,' + Buffer.from(stripTypeScriptTypes(source)).toString('base64'));
@@ -57,4 +57,32 @@ test('real PNG exports have exact dimensions and deterministic pixels', async ()
     assert.ok(bytes.length>10000);
   }
   const a=createCanvas(1,1),b=createCanvas(1,1); renderMat(a,preset(5),1200,675); renderMat(b,preset(5),1200,675); assert.deepEqual(a.toBuffer('image/png'),b.toBuffer('image/png'));
+});
+
+test('one slider gesture creates one undo step, including interruption and no-op gestures', () => {
+  let h={past:[],present:original,future:[]}; h=reducer(h,{type:'begin'});
+  for(let i=25;i<=70;i++) { h=reducer(h,{type:'begin'}); h=reducer(h,{type:'set',recipe:{...original,grid:{...original.grid,spacing:i}}}); }
+  assert.equal(h.past.length,0); h=reducer(h,{type:'commit'}); assert.equal(h.past.length,1);
+  const edited=h.present; h=reducer(h,{type:'undo'}); assert.deepEqual(h.present,original); h=reducer(h,{type:'redo'}); assert.deepEqual(h.present,edited);
+  const before=h; h=reducer(reducer(h,{type:'begin'}),{type:'commit'}); assert.deepEqual(h,before);
+  h=reducer(h,{type:'begin'}); h=reducer(h,{type:'set',recipe:preset(3)}); h=reducer(h,{type:'undo'}); assert.deepEqual(h.present,edited);
+});
+test('preset application keeps chosen dimensions by default and can use native preset dimensions', () => {
+  const current={...original,width:1111,height:777};
+  for(let i=0;i<6;i++) { const p=applyPreset(i,current); assert.equal(p.width,1111); assert.equal(p.height,777); assert.deepEqual(p.grid,preset(i).grid); }
+  assert.deepEqual(applyPreset(4,current,false),preset(4)); assert.equal(current.width,1111);
+});
+test('portable designs round trip legacy recipes, discard unknown fields, and reject invalid files', () => {
+  for(let i=0;i<6;i++) assert.deepEqual(parseDesignFile(serializeDesign(preset(i))),preset(i));
+  const withExtra={...original,unexpected:'ignored',grid:{...original.grid,unknown:7}};
+  assert.deepEqual(parseDesignFile(JSON.stringify(withExtra)),original);
+  for(const data of ['{','null','[]','"hello"',JSON.stringify({...original,version:99}),JSON.stringify({...original,grid:{...original.grid,spacing:0}}),' '.repeat(65537)]) assert.throws(()=>parseDesignFile(data));
+});
+test('corrupt latest session does not erase healthy saved designs, and vice versa', () => {
+  const rows=[{id:'kept',name:'Favorite',recipe:preset(2)}];
+  const a=readStorage({getItem:key=>key.endsWith('latest')?'{':JSON.stringify(rows)}); assert.equal(a.error,true); assert.equal(a.saved.length,1); assert.deepEqual(a.saved[0].recipe,preset(2));
+  const b=readStorage({getItem:key=>key.endsWith('latest')?JSON.stringify(original):'{'}); assert.deepEqual(b.recipe,original); assert.equal(b.error,true);
+});
+test('zero-opacity legend leaves no opaque plaque behind', () => {
+  const a=recordingCanvas(),b=recordingCanvas(); renderMat(a,{...original,typography:{...original.typography,opacity:0}},1200,675); renderMat(b,{...original,typography:{...original.typography,title:'',subtitle:''}},1200,675); assert.deepEqual(a.operations,b.operations);
 });
