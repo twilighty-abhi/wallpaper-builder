@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "vinext dev",
+    "fonts:update": "node scripts/update-google-fonts.mjs",
     "build": "vinext build",
     "build:vercel": "NITRO_PRESET=vercel vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",

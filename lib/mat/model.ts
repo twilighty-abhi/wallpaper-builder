@@ -1,3 +1,4 @@
+import googleCatalog from './google-fonts.json' with { type: 'json' };
 export type Palette = { name: string; background: string; grid: string; label: string; accent: string };
 export const palettes: Palette[] = [
   { name: 'Forest', background: '#174c3c', grid: '#a4c9a0', label: '#e2dfb4', accent: '#cdd9a0' },
@@ -9,11 +10,56 @@ export const palettes: Palette[] = [
   { name: 'Oxide', background: '#633e45', grid: '#c4969c', label: '#f0d7cb', accent: '#eebdac' },
   { name: 'Drafting paper', background: '#e6e1cc', grid: '#7c9294', label: '#3c5355', accent: '#576f8b' },
 ];
+export const textFonts = [
+  { id: 'mono', name: 'Monospace', family: 'monospace' },
+  { id: 'sans', name: 'Sans serif · Arial', family: 'Arial, Helvetica, sans-serif' },
+  { id: 'serif', name: 'Serif · Georgia', family: 'Georgia, serif' },
+  { id: 'classic', name: 'Classic · Times', family: '"Times New Roman", Times, serif' },
+] as const;
+export const googleFonts = googleCatalog.families;
+const googleFontMap = new Map(googleFonts.map(font => [`google:${font.family}`, font]));
+export type TextFont = typeof textFonts[number]['id'] | `google:${string}`;
+export function isTextFont(font: unknown): font is TextFont { return typeof font === 'string' && (textFonts.some(option => option.id === font) || googleFontMap.has(font)); }
+export function textFontFamily(font: TextFont) { const google = googleFontMap.get(font); return google ? `${JSON.stringify(google.family)}, sans-serif` : textFonts.find(option => option.id === font)?.family ?? 'monospace'; }
+export function googleFontUrl(font: TextFont): string | null {
+  const google = googleFontMap.get(font); if (!google) return null;
+  const family = `${google.family}:${google.italic ? 'ital,wght@1,' : 'wght@'}${google.weight}`;
+  return `https://fonts.googleapis.com/css2?${new URLSearchParams({ family, display: 'swap' })}`;
+}
+const fontStylesheets = new Map<string, Promise<void>>();
+export async function ensureTextFont(font: TextFont, text: string): Promise<void> {
+  const url = googleFontUrl(font); if (!url) return;
+  if (typeof document === 'undefined' || !document.fonts) throw new Error('Google Fonts require a browser with web font support.');
+  const message = 'Could not load the selected Google font. Check your connection and retry, or choose a built-in font.';
+  let stylesheet = fontStylesheets.get(font);
+  if (!stylesheet) {
+    const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = url;
+    stylesheet = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => fail(), 15000);
+      function fail() { clearTimeout(timer); link.remove(); fontStylesheets.delete(font); reject(new Error(message)); }
+      link.onload = () => { clearTimeout(timer); resolve(); }; link.onerror = fail;
+      document.head.appendChild(link);
+    });
+    fontStylesheets.set(font, stylesheet);
+  }
+  await stylesheet;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    // Loading with the actual words also fetches the required non-Latin subsets.
+    await Promise.race([
+      Promise.all([400, 500].map(async weight => {
+        const faces = await document.fonts.load(`${weight} 16px ${JSON.stringify(googleFontMap.get(font)!.family)}`, text || 'Aa');
+        if (!faces.length || faces.some(face => face.status !== 'loaded')) throw new Error(message);
+      })),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(message)), 15000); }),
+    ]);
+  } catch { throw new Error(message); } finally { clearTimeout(timer); }
+}
 export type WallpaperRecipe = {
   version: 1; name: string; width: number; height: number; palette: Palette;
   grid: { spacing: number; majorEvery: number; minorWidth: number; majorWidth: number; minorOpacity: number; majorOpacity: number; dotted: boolean; offsetX: number; offsetY: number };
   guides: { top: boolean; right: boolean; bottom: boolean; left: boolean; angle30: boolean; angle45: boolean; angle60: boolean; circles: boolean; border: boolean };
-  typography: { title: string; subtitle: string; size: number; opacity: number };
+  typography: { font: TextFont; title: string; subtitle: string; size: number; opacity: number; x: number; y: number };
   material: { seed: number; grain: number; wear: number };
   quiet: { enabled: boolean; x: number; y: number; width: number; height: number; strength: number };
 };
@@ -21,7 +67,7 @@ export const original: WallpaperRecipe = {
   version: 1, name: 'Original', width: 3840, height: 2160, palette: palettes[0],
   grid: { spacing: 24, majorEvery: 5, minorWidth: .55, majorWidth: 1, minorOpacity: .3, majorOpacity: .58, dotted: false, offsetX: 0, offsetY: 0 },
   guides: { top: true, right: false, bottom: false, left: true, angle30: false, angle45: true, angle60: false, circles: false, border: true },
-  typography: { title: 'CUTTING MAT', subtitle: 'PRECISION SURFACE  /  SERIES 01', size: 16, opacity: .85 },
+  typography: { font: 'mono', title: 'CUTTING MAT', subtitle: 'PRECISION SURFACE  /  SERIES 01', size: 16, opacity: .85, x: 100, y: 100 },
   material: { seed: 4721, grain: .16, wear: .03 },
   quiet: { enabled: false, x: 50, y: 30, width: 45, height: 25, strength: .85 },
 };
@@ -72,7 +118,9 @@ export function dimensionError(width: number, height: number): string | null {
 const ranges: Record<string, [number, number]> = { spacing: [12, 80], majorEvery: [2, 10], minorWidth: [.2, 2], majorWidth: [.3, 3], minorOpacity: [0, 1], majorOpacity: [0, 1], offsetX: [0, 100], offsetY: [0, 100], size: [8, 30], opacity: [0, 1], seed: [0, 2147483647], grain: [0, 1], wear: [0, 1], x: [0, 100], y: [0, 100], width: [5, 100], height: [5, 100], strength: [0, 1] };
 export function parseRecipe(value: unknown): WallpaperRecipe | null {
   if (!value || typeof value !== 'object') return null;
-  const r = value as WallpaperRecipe;
+  const input = value as WallpaperRecipe;
+  // Older version-1 designs predate movable text.
+  const r = { ...input, typography: input.typography && { ...input.typography, font: input.typography.font === undefined ? 'mono' : input.typography.font, x: input.typography.x === undefined ? 100 : input.typography.x, y: input.typography.y === undefined ? 100 : input.typography.y } };
   if (r.version !== 1 || typeof r.name !== 'string' || r.name.length > 100 || dimensionError(r.width, r.height)) return null;
   for (const section of ['palette', 'grid', 'guides', 'typography', 'material', 'quiet'] as const) {
     if (!r[section] || typeof r[section] !== 'object') return null;
@@ -84,6 +132,7 @@ export function parseRecipe(value: unknown): WallpaperRecipe | null {
       if (section === 'palette' && key !== 'name' && !/^#[0-9a-f]{6}$/i.test(v as string)) return null;
     }
   }
+  if (!isTextFont(r.typography.font)) return null;
   if (!Number.isInteger(r.grid.majorEvery) || !Number.isInteger(r.material.seed)) return null;
   const clean = clone(original);
   clean.name = r.name; clean.width = r.width; clean.height = r.height;
@@ -118,3 +167,14 @@ export function parseDesignFile(text: string): WallpaperRecipe {
 }
 export function serializeDesign(recipe: WallpaperRecipe): string { return JSON.stringify(recipe, null, 2); }
 export function writeStorage(storage: Pick<Storage, 'setItem'>, key: string, value: unknown): boolean { try { storage.setItem(key, JSON.stringify(value)); return true; } catch { return false; } }
+
+// Position is a percentage of the available travel, keeping the whole plaque visible.
+export function legendLayout(r: WallpaperRecipe) {
+  const w = Math.max(1200, 360 * r.width / r.height), h = w * r.height / r.width;
+  const width = Math.min(w - 84, Math.max(Array.from(r.typography.title).length * r.typography.size * .62, Array.from(r.typography.subtitle).length * r.typography.size * .55 * .62) + 50);
+  const height = r.typography.size + 43;
+  const travelX = Math.max(0, w - width), travelY = Math.max(0, h - height);
+  const left = (r.typography.x ?? 100) / 100 * Math.max(0, travelX - 52);
+  const top = (r.typography.y ?? 100) / 100 * Math.max(0, travelY - 58);
+  return { w, h, width, height, left, top, travelX: Math.max(0, travelX - 52), travelY: Math.max(0, travelY - 58) };
+}

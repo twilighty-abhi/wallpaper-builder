@@ -120,3 +120,66 @@ select { appearance:none; width:100%; height:100%; padding:0 30px 0 34px; backgr
 @media(prefers-reduced-motion:reduce){ *,*::before,*::after{animation:none!important;transition:none!important;} }
 .exact-value{display:flex;align-items:center;gap:4px;color:#b8cba4;font:9px var(--font-geist-mono),monospace}.exact-value input{width:58px;padding:4px 5px;border:1px solid #3e5034;border-radius:4px;background:#263222;color:#d1e3bd;text-align:right;font:inherit}.exact-value input:focus{outline:1px solid #c2db9c}.keep-canvas{margin-left:auto;display:flex;align-items:center;gap:7px;color:#a1b494;font-size:10px;cursor:pointer}.canvas-tools,.design-file-actions{display:flex;gap:8px;margin-top:13px}.canvas-tools>button{flex:1;font-size:10px}.design-file-actions{margin:0 0 8px}.design-file-actions>button{font-size:11px}.portable-note{font-size:10px;color:#9bb08f;margin-bottom:18px}.saved-thumbnail{display:flex;align-items:center;justify-content:center;width:58px;height:38px;background:#101b13;border-radius:3px;overflow:hidden;flex-shrink:0}.saved-thumbnail canvas{max-width:100%;max-height:100%}.deleted-notice{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px;color:#c3d3b4;padding-top:14px}.deleted-notice span{overflow-wrap:anywhere}.save-form{flex-wrap:wrap}.save-form input{flex:1;min-width:130px}.saved-item>button:not(:first-child){width:26px;height:28px}.saved-item>button:not(:first-child) svg{width:12px;height:12px}@media(max-width:760px){.presets-heading{flex-wrap:wrap}.presets-heading>p{display:none}.keep-canvas{font-size:9px}.exact-value input{width:68px;padding:6px}.design-file-actions>button{flex:1}}
 .device-search{position:relative;margin-bottom:9px;display:flex;align-items:center}.device-search>svg{position:absolute;left:10px;pointer-events:none;color:#9dac92}.device-search input{padding-left:31px;padding-right:29px;font-size:10px;background:#172016;height:34px;border-radius:5px}.device-search>button{position:absolute;right:5px;color:#a6b69a}.device-search input::-webkit-search-cancel-button{display:none}.device-status{font-size:9px;line-height:1.65;margin-top:8px;color:#a0b18f}.device-note{font-size:9px;color:#899b7b;line-height:1.65;margin-top:6px}.device-spec-link{display:inline-block;font-size:9px;color:#c1d9a4;margin-top:5px;text-decoration:underline;text-underline-offset:3px}.device-picker .select-wrap select{font-size:10px;text-overflow:ellipsis}
+
+/* Keep the canvas and its editing target in the same coordinate space. */
+.mat-surface { position:relative; flex:none; max-width:100%; max-height:100%; }
+.mat-surface canvas { display:block; width:100%; height:100%; }
+.legend-handle { position:absolute; border:1px dashed #d3efad; border-radius:3px; background:transparent; cursor:grab; touch-action:none; user-select:none; min-height:28px; min-width:44px; }
+.legend-handle:active { cursor:grabbing; border-style:solid; }
+.drag-label { position:absolute; right:0; bottom:calc(100% + 5px); white-space:nowrap; font-size:10px; color:#20301f; background:#d3efad; padding:3px 6px; border-radius:3px; }
+.preview-tools { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-top:12px; }
+.preview-tools button { font-size:11px; }
+.preview-tools>span,.text-help { color:#a1b494; font-size:11px; line-height:1.6; }
+.text-help { margin-bottom:18px; }
+.control-tabs { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.settings,.brand,.header-actions,.device-picker,.select-wrap { min-width:0; }
+.palette-grid { flex-wrap:wrap; }
+.preview-caption { flex-wrap:wrap; line-height:1.6; }
+.presets-heading { flex-wrap:wrap; }
+.select-wrap select { min-width:0; }
+@media(max-width:760px) {
+  .topbar { flex-wrap:wrap; gap:12px; padding:14px 16px; }
+  .brand { flex:1 1 140px; }
+  .header-actions { margin-left:auto; }
+  .saved-trigger,.history-actions button,.expand-button { width:44px; height:44px; }
+  .export-button { min-height:44px; font-size:11px; }
+  .main-column { padding:22px 16px; }
+  .workspace-heading { gap:8px; margin-bottom:18px; }
+  .workspace-heading h2 { font-size:22px; }
+  .history-actions { padding-left:0; border-left:0; }
+  .preview-stage { height:clamp(240px,48svh,420px); min-height:0; }
+  .expanded-preview { padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left)); }
+  .expanded-preview .preview-stage { min-height:0; }
+  .settings { padding:0 16px 28px; }
+  .palette-grid { gap:12px; }
+  .swatch { width:36px; height:36px; }
+  .control-tabs button { min-height:44px; font-size:12px; }
+  .settings input:not([type=color]),.save-form input,.exact-value input,.device-picker .select-wrap select { font-size:16px; min-height:44px; }
+  .select-wrap { height:44px; }
+  .settings .full-button,.canvas-tools button,.design-file-actions button,.save-form button,.shuffle-button { min-height:44px; }
+  .settings-title button,.saved-item>button:not(:first-child) { width:44px; height:44px; }
+  .toggle-field { min-height:44px; margin-bottom:8px; }
+  .toggle-field label { flex:1; padding:12px 0; }
+  .control-row,.text-field,.section-heading h3 { font-size:12px; }
+  [data-slot=slider] { min-height:32px; }
+  [data-slot=slider-thumb] { width:20px; height:20px; }
+  .fine-details summary { min-height:44px; font-size:12px; }
+  .lock-chips button { min-height:36px; font-size:10px; }
+  .design-file-actions { flex-wrap:wrap; }
+  .saved-panel { padding:14px; }
+  .toast { width:calc(100% - 32px); bottom:max(16px,env(safe-area-inset-bottom)); }
+  .preview-tools>span { flex-basis:100%; }
+}
+@media(max-width:360px) {
+  .header-actions { width:100%; }
+  .export-button { flex:1; }
+  .preset-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .keep-canvas { margin-left:0; }
+}
+
+.font-select { margin-top:7px; }
+.font-select select { padding-left:12px; }
+.font-picker { margin-bottom:22px; }
+.font-status { display:block; font-size:11px; line-height:1.6; color:#a1b494; margin-bottom:10px; }
+.font-sample { padding:12px; background:#171f17; border:1px solid var(--border); border-radius:5px; font-size:20px; overflow-wrap:anywhere; max-height:150px; overflow:auto; }
+.font-picker .text-field { margin-bottom:12px; }

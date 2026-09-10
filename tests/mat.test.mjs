@@ -86,3 +86,117 @@ test('corrupt latest session does not erase healthy saved designs, and vice vers
 test('zero-opacity legend leaves no opaque plaque behind', () => {
   const a=recordingCanvas(),b=recordingCanvas(); renderMat(a,{...original,typography:{...original.typography,opacity:0}},1200,675); renderMat(b,{...original,typography:{...original.typography,title:'',subtitle:''}},1200,675); assert.deepEqual(a.operations,b.operations);
 });
+
+test('legacy text migrates and moved text survives save, load and undo', () => {
+  const legacy = clone(original); delete legacy.typography.x; delete legacy.typography.y;
+  assert.deepEqual(parseRecipe(legacy), original);
+  const moved = { ...original, typography: { ...original.typography, title: 'My workspace', x: 23, y: 41 } };
+  assert.deepEqual(parseDesignFile(serializeDesign(moved)), moved);
+  let h = { past: [], present: original, future: [] };
+  h = reducer(h, { type: 'begin' });
+  h = reducer(h, { type: 'set', recipe: moved });
+  h = reducer(h, { type: 'set', recipe: { ...moved, typography: { ...moved.typography, x: 60 } } });
+  h = reducer(h, { type: 'commit' });
+  assert.equal(h.past.length, 1);
+  assert.deepEqual(reducer(h, { type: 'undo' }).present, original);
+  for (const x of [-1, 101, NaN, '50', null]) assert.equal(parseRecipe({ ...original, typography: { ...original.typography, x } }), null);
+});
+
+test('text remains within portrait and landscape exports at every corner', async () => {
+  const { legendLayout } = await import('../lib/mat/model.ts');
+  for (const [width, height] of [[3840,2160], [1440,3120], [8192,64], [64,8192]]) {
+    for (const x of [0,50,100]) for (const y of [0,50,100]) {
+      const recipe = { ...original, width, height, typography: { ...original.typography, title: 'A'.repeat(80), subtitle: 'B'.repeat(120), size: 30, x, y } };
+      const box = legendLayout(recipe);
+      assert.ok(box.left >= 0 && box.top >= 0);
+      assert.ok(box.left + box.width <= box.w && box.top + box.height <= box.h);
+      const canvas = recordingCanvas(); renderMat(canvas, recipe, 1200, 675);
+      const title = canvas.operations.find(op => op[0] === 'fillText' && op[1] === recipe.typography.title);
+      assert.ok(title); assert.equal(title[2], box.left + box.width - 14);
+    }
+  }
+});
+
+test('font choices persist, render both text lines, and migrate older designs', async () => {
+  const { textFonts } = await import('../lib/mat/model.ts');
+  const legacy = clone(original); delete legacy.typography.font;
+  assert.equal(parseRecipe(legacy).typography.font, 'mono');
+  for (const font of textFonts) {
+    const recipe = { ...original, typography: { ...original.typography, font: font.id } };
+    assert.deepEqual(parseDesignFile(serializeDesign(recipe)), recipe);
+    const canvas = recordingCanvas(); renderMat(canvas, recipe, 1200, 675);
+    const fonts = canvas.operations.filter(op => op[0] === 'font').slice(-2);
+    assert.deepEqual(fonts, [['font', `500 ${recipe.typography.size}px ${font.family}`], ['font', `${recipe.typography.size * .55}px ${font.family}`]]);
+  }
+  for (const font of ['unknown', '', null, 42]) assert.equal(parseRecipe({ ...original, typography: { ...original.typography, font } }), null);
+});
+
+test('complete Google Fonts catalog validates and round trips every selectable family', async () => {
+  const { googleFonts, isTextFont, googleFontUrl, textFontFamily } = await import('../lib/mat/model.ts');
+  assert.ok(googleFonts.length > 1900);
+  assert.equal(new Set(googleFonts.map(font => font.family)).size, googleFonts.length);
+  for (const font of googleFonts) {
+    const id = `google:${font.family}`;
+    assert.equal(isTextFont(id), true);
+    const recipe = { ...original, typography: { ...original.typography, font: id } };
+    assert.deepEqual(parseDesignFile(serializeDesign(recipe)), recipe);
+    const url = new URL(googleFontUrl(id));
+    assert.equal(url.origin, 'https://fonts.googleapis.com');
+    assert.equal(url.searchParams.get('family'), `${font.family}:${font.italic ? 'ital,wght@1,' : 'wght@'}${font.weight}`);
+    assert.equal(textFontFamily(id), `${JSON.stringify(font.family)}, sans-serif`);
+  }
+  for (const invalid of ['google:Missing Font', 'google:Roboto&family=evil', 'google:', 'google:";color:red']) assert.equal(isTextFont(invalid), false);
+});
+
+test('Google font export fails explicitly without a font loader instead of exporting fallback text', async () => {
+  const recipe = { ...original, typography: { ...original.typography, font: 'google:Roboto' } };
+  let allocated = false;
+  await assert.rejects(exportPng(recipe, () => { allocated = true; return recordingCanvas(); }), /web font support/);
+  assert.equal(allocated, false);
+  await exportPng({ ...recipe, typography: { ...recipe.typography, opacity: 0 } }, () => recordingCanvas());
+});
+
+test('web font requests share a stylesheet and PNG export waits for font files', async () => {
+  const { ensureTextFont } = await import('../lib/mat/model.ts');
+  const previous = globalThis.document;
+  const links = [], requests = [];
+  let release;
+  const fontReady = new Promise(resolve => { release = resolve; });
+  globalThis.document = {
+    // Minimal DOM fake; this is not the deprecated browser overload.
+    // oxlint-disable-next-line typescript/no-deprecated
+    createElement: () => ({ remove() {} }),
+    head: { appendChild(link) { links.push(link); queueMicrotask(() => link.onload()); } },
+    fonts: { async load(font, text) { requests.push({ font, text }); await fontReady; return [{ status: 'loaded' }]; } },
+  };
+  try {
+    const recipe = { ...original, typography: { ...original.typography, font: 'google:Inter', title: 'Hello नमस्ते' } };
+    let allocated = false;
+    const exported = exportPng(recipe, () => { allocated = true; return recordingCanvas(); });
+    const preview = ensureTextFont(recipe.typography.font, recipe.typography.title);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(links.length, 1);
+    assert.equal(allocated, false);
+    assert.ok(requests.every(request => request.text.includes('नमस्ते')));
+    release(); await Promise.all([exported, preview]);
+    assert.equal(allocated, true);
+  } finally { globalThis.document = previous; }
+});
+
+test('a failed Google stylesheet can be retried successfully', async () => {
+  const { ensureTextFont } = await import('../lib/mat/model.ts');
+  const previous = globalThis.document;
+  let attempts = 0, removed = 0;
+  globalThis.document = {
+    // Minimal DOM fake; this is not the deprecated browser overload.
+    // oxlint-disable-next-line typescript/no-deprecated
+    createElement: () => ({ remove() { removed++; } }),
+    head: { appendChild(link) { attempts++; queueMicrotask(() => attempts === 1 ? link.onerror() : link.onload()); } },
+    fonts: { async load() { return [{ status: 'loaded' }]; } },
+  };
+  try {
+    await assert.rejects(ensureTextFont('google:Lato', 'Test'), /Check your connection/);
+    await ensureTextFont('google:Lato', 'Test');
+    assert.equal(attempts, 2); assert.equal(removed, 1);
+  } finally { globalThis.document = previous; }
+});

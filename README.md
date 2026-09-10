@@ -49,3 +49,15 @@ This regenerates procedural social artwork and sample renders. No AI assets are 
 The Canvas picker contains 55 searchable native-pixel presets, grouped into common sizes, iPhone, Samsung Galaxy, Google Pixel, other Android phones, MacBook, Apple desktop displays, and iPad. `lib/mat/devices.ts` records manufacturer specification URLs for named devices (verified September 2026). Search by brand, model, or pixel dimensions; select a result to apply it. Phones/tablets default to portrait; Rotate swaps the canvas dimensions.
 
 Device IDs distinguish models that share the same resolution during selection. Recipes still store dimensions, so existing saves and design files remain compatible; a restored or rotated size is labeled by its dimensions rather than guessing a device model. macOS display scaling and browser zoom do not affect these native-pixel presets. Custom dimensions and My screen remain available.
+
+### Google Fonts
+
+The Text tab includes a searchable snapshot of the full Google Fonts family catalog,
+plus the four built-in fonts. Font stylesheets and font files load directly from
+Google only when selected; PNG export waits for the selected font and its required
+character subsets. A failed download shows an error instead of silently exporting
+a substitute font. Built-in fonts remain usable offline.
+
+Refresh the bundled catalog with `npm run fonts:update`, then rebuild. The snapshot
+records its source and fetch date in `lib/mat/google-fonts.json`; no API key is needed.
+Font delivery uses the [Google Fonts CSS API](https://developers.google.com/fonts/docs/css2).

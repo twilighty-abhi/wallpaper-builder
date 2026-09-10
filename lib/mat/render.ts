@@ -1,4 +1,4 @@
-import { seededRandom, dimensionError, type WallpaperRecipe } from './model';
+import { seededRandom, dimensionError, legendLayout, textFontFamily, ensureTextFont, type WallpaperRecipe } from './model';
 const textureCache = new Map<number, { dots: number[][]; cuts: number[][] }>();
 function texture(seed: number) {
   if (textureCache.has(seed)) return textureCache.get(seed)!;
@@ -57,16 +57,16 @@ export function renderMat(canvas: HTMLCanvasElement, r: WallpaperRecipe, width: 
   c.strokeStyle = r.palette.label; c.lineWidth = .4;
   for (const [x, y, angle, length, opacity] of t.cuts.slice(0, Math.round(r.material.wear * t.cuts.length))) { c.globalAlpha = (.02 + opacity * .11) * r.material.wear; const len = 20 + length * 190; line(x * w, y * h, x * w + Math.cos(angle * Math.PI * 2) * len, y * h + Math.sin(angle * Math.PI * 2) * len); }
   if (r.typography.opacity > 0 && (r.typography.title || r.typography.subtitle)) {
-    const x = w - margin - 24, y = h - margin - 48;
-    c.textAlign = 'right'; c.font = `500 ${r.typography.size}px monospace`;
-    const boxWidth = Math.min(w - margin * 2 - 30, Math.max(c.measureText(r.typography.title).width, r.typography.subtitle.length * r.typography.size * .33) + 36);
-    c.globalAlpha = .97; c.fillStyle = r.palette.background; c.fillRect(x - boxWidth, y - r.typography.size - 11, boxWidth + 14, r.typography.size + 43);
-    c.globalAlpha = r.typography.opacity; c.fillStyle = r.palette.label; c.fillText(r.typography.title, x, y, boxWidth - 12); c.font = `${r.typography.size * .55}px monospace`; c.fillText(r.typography.subtitle, x, y + 20, boxWidth - 12);
+    const box = legendLayout(r), x = box.left + box.width - 14, y = box.top + r.typography.size + 11;
+    c.textAlign = 'right'; c.font = `500 ${r.typography.size}px ${textFontFamily(r.typography.font)}`;
+    c.globalAlpha = .97; c.fillStyle = r.palette.background; c.fillRect(box.left, box.top, box.width, box.height);
+    c.globalAlpha = r.typography.opacity; c.fillStyle = r.palette.label; c.fillText(r.typography.title, x, y, box.width - 26); c.font = `${r.typography.size * .55}px ${textFontFamily(r.typography.font)}`; c.fillText(r.typography.subtitle, x, y + 20, box.width - 26);
   }
   c.globalAlpha = 1;
 }
 export async function exportPng(r: WallpaperRecipe, factory: () => HTMLCanvasElement = () => document.createElement('canvas')): Promise<Blob> {
   const error = dimensionError(r.width, r.height); if (error) throw new Error(error);
+  if (r.typography.opacity > 0 && (r.typography.title || r.typography.subtitle)) await ensureTextFont(r.typography.font, r.typography.title + r.typography.subtitle);
   const canvas = factory();
   try { renderMat(canvas, r, r.width, r.height); return await new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Your browser could not create this PNG. Try a smaller size.')), 'image/png')); }
   finally { canvas.width = 1; canvas.height = 1; }
