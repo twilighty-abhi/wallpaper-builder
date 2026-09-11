@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
 
-const siteUrl = 'https://cutting-mat-studio.abhiram355203.chatgpt.site';
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: siteUrl ? new URL(siteUrl) : undefined,
   title: 'Cutting Mat — Wallpaper Studio',
   applicationName: 'Cutting Mat Studio',
   alternates: { canonical: '/' },

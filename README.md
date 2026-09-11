@@ -1,6 +1,6 @@
 # Cutting Mat Studio
 
-A local-first procedural wallpaper editor built with React, TypeScript, Canvas 2D, and Sites. No image generation APIs, uploads, or application accounts.
+A local-first procedural wallpaper editor built with React, TypeScript, and Canvas 2D. No image generation APIs, uploads, or application accounts.
 
 ## Develop
 
